@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aria - Mental Health Companion</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --accent: #7c6af7;
+      --accent-soft: #a898ff;
+      --danger: #ff6b6b;
+      --danger-bg: #2a1a1a;
+      --text: #e8e8f0;
+      --text-muted: #888aaa;
+      --radius: 16px;
+      --user-bubble: #2d2050;
+      --aria-bubble: #1e2235;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid #ffffff10;
+      flex-shrink: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #c084fc);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo-text h1 { font-size: 18px; font-weight: 700; }
+    .logo-text p { font-size: 11px; color: var(--text-muted); }
+    .model-selector { display: flex; gap: 6px; }
+    .model-btn {
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid #ffffff20;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .model-btn:hover { border-color: var(--accent); color: var(--text); }
+    .model-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    #crisis-banner {
+      display: none;
+      background: var(--danger-bg);
+      border-top: 2px solid var(--danger);
+      padding: 10px 20px;
+      font-size: 13px;
+      color: var(--danger);
+      flex-shrink: 0;
+      text-align: center;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: #ffffff15; border-radius: 4px; }
+    .message { display: flex; gap: 10px; max-width: 78%; animation: fadeUp 0.25s ease; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.aria  { align-self: flex-start; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .message.aria .avatar { background: linear-gradient(135deg, var(--accent), #c084fc); }
+    .message.user .avatar { background: var(--surface2); }
+    .bubble {
+      padding: 12px 16px; border-radius: var(--radius);
+      font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+    }
+    .message.aria .bubble { background: var(--aria-bubble); border-top-left-radius: 4px; }
+    .message.user .bubble { background: var(--user-bubble); border-top-right-radius: 4px; }
+    .typing-indicator {
+      display: flex; gap: 5px; padding: 14px 16px;
+      background: var(--aria-bubble); border-radius: var(--radius);
+      border-top-left-radius: 4px; width: fit-content;
+    }
+    .dot {
+      width: 7px; height: 7px; background: var(--text-muted);
+      border-radius: 50%; animation: bounce 1.2s infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-6px); opacity: 1; }
+    }
+    #resources-toggle {
+      position: fixed; right: 16px; bottom: 90px;
+      background: var(--surface2); border: 1px solid #ffffff15;
+      color: var(--text-muted); font-size: 12px; padding: 8px 12px;
+      border-radius: 20px; cursor: pointer; transition: all 0.2s; z-index: 10;
+    }
+    #resources-toggle:hover { border-color: var(--accent); color: var(--text); }
+    #resources-panel {
+      display: none; position: fixed; right: 16px; bottom: 130px;
+      width: 240px; background: var(--surface); border: 1px solid #ffffff15;
+      border-radius: var(--radius); padding: 16px; font-size: 13px;
+      z-index: 10; box-shadow: 0 8px 32px #00000060;
+    }
+    #resources-panel h3 { font-size: 13px; color: var(--accent-soft); margin-bottom: 10px; }
+    #resources-panel ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    #resources-panel li { color: var(--text-muted); line-height: 1.5; }
+    #resources-panel strong { color: var(--text); }
+    #input-area {
+      padding: 14px 20px; background: var(--surface);
+      border-top: 1px solid #ffffff10;
+      display: flex; gap: 10px; align-items: flex-end; flex-shrink: 0;
+    }
+    #user-input {
+      flex: 1; background: var(--surface2); border: 1px solid #ffffff15;
+      border-radius: 12px; padding: 12px 16px; color: var(--text);
+      font-size: 14px; resize: none; max-height: 140px; line-height: 1.5;
+      outline: none; transition: border-color 0.2s; font-family: inherit;
+    }
+    #user-input::placeholder { color: var(--text-muted); }
+    #user-input:focus { border-color: var(--accent); }
+    #send-btn {
+      width: 44px; height: 44px; border-radius: 12px; background: var(--accent);
+      border: none; color: #fff; font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s; flex-shrink: 0;
+    }
+    #send-btn:hover { background: var(--accent-soft); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .disclaimer {
+      text-align: center; font-size: 11px; color: var(--text-muted);
+      padding: 6px 20px; background: var(--surface);
+      border-top: 1px solid #ffffff08; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌿</div>
+    <div class="logo-text">
+      <h1>Aria</h1>
+      <p>Mental Health Companion</p>
+    </div>
+  </div>
+  <div class="model-selector">
+    <button class="model-btn active" data-model="claude">Claude</button>
+    <button class="model-btn" data-model="chatgpt">ChatGPT</button>
+    <button class="model-btn" data-model="gemini">Gemini</button>
+  </div>
+</header>
+<div id="crisis-banner">
+  If you are in immediate danger, please call <strong>988</strong> (US Suicide &amp; Crisis Lifeline)
+  or go to your nearest emergency room. You matter.
+</div>
+<div id="messages"></div>
+<button id="resources-toggle" onclick="toggleResources()">Crisis Resources</button>
+<div id="resources-panel">
+  <h3>Crisis Resources</h3>
+  <ul>
+    <li><strong>988 Lifeline</strong><br>Call or text 988 (US)</li>
+    <li><strong>Crisis Text Line</strong><br>Text HOME to 741741</li>
+    <li><strong>Trevor Project</strong><br>1-866-488-7386 (LGBTQ+)</li>
+    <li><strong>International</strong><br><a href="https://www.iasp.info/resources/Crisis_Centres/" target="_blank" style="color:var(--accent-soft)">iasp.info/resources</a></li>
+  </ul>
+</div>
+<div id="input-area">
+  <textarea id="user-input" rows="1" placeholder="Share what's on your mind..."></textarea>
+  <button id="send-btn" onclick="sendMessage()">&#10148;</button>
+</div>
+<div class="disclaimer">
+  Aria is a supportive companion, not a licensed therapist. In an emergency, call 988 or 911.
+</div>
+<script>
+  let selectedModel = 'claude';
+  let history = [];
+  let loading = false;
+
+  document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedModel = btn.dataset.model;
+    });
+  });
+
+  const input = document.getElementById('user-input');
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  function toggleResources() {
+    const p = document.getElementById('resources-panel');
+    p.style.display = p.style.display === 'block' ? 'none' : 'block';
+  }
+  document.addEventListener('click', e => {
+    const p = document.getElementById('resources-panel');
+    const t = document.getElementById('resources-toggle');
+    if (!p.contains(e.target) && e.target !== t) p.style.display = 'none';
+  });
+
+  function addMessage(role, text, crisis = false) {
+    const feed = document.getElementById('messages');
+    const wrap = document.createElement('div');
+    wrap.className = `message ${role}`;
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.textContent = role === 'aria' ? '🌿' : '👤';
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.textContent = text;
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+    col.appendChild(bub);
+    wrap.appendChild(av);
+    wrap.appendChild(col);
+    feed.appendChild(wrap);
+    feed.scrollTop = feed.scrollHeight;
+    if (crisis) document.getElementById('crisis-banner').style.display = 'block';
+  }
+
+  function showTyping() {
+    const feed = document.getElementById('messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'message aria'; wrap.id = 'typing';
+    const av = document.createElement('div');
+    av.className = 'avatar'; av.textContent = '🌿';
+    const ind = document.createElement('div');
+    ind.className = 'typing-indicator';
+    ind.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+    wrap.appendChild(av); wrap.appendChild(ind);
+    feed.appendChild(wrap);
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    addMessage('aria', "Hi, I'm Aria. I'm here to listen and support you - no judgment, just care. How are you feeling today?");
+  });
+
+  async function sendMessage() {
+    if (loading) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = ''; input.style.height = 'auto';
+    addMessage('user', text);
+    history.push({ role: 'user', content: text });
+    loading = true;
+    document.getElementById('send-btn').disabled = true;
+    showTyping();
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, model: selectedModel }),
+      });
+      const data = await res.json();
+      document.getElementById('typing')?.remove();
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      addMessage('aria', data.reply, data.crisisDetected);
+      history.push({ role: 'assistant', content: data.reply });
+    } catch (err) {
+      document.getElementById('typing')?.remove();
+      addMessage('aria', "I'm having trouble connecting. If you're in crisis, please call or text 988.");
+    } finally {
+      loading = false;
+      document.getElementById('send-btn').disabled = false;
+      input.focus();
+    }
+  }
+</script>
+</body>
+</html>
