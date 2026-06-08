@@ -241,21 +241,27 @@ Crisis: If he's in real danger, stay calm and present, gently mention 988 when r
 function ownerBriefing(profile) {
   return `You are Aria, in OWNER MODE. Brandon (your creator) turned this on.
 
-Everything you are lives in ONE file: aria.mjs. When Brandon asks you to change something about yourself, the file's contents get injected below marked [MYCODE]. Read it and find the exact text to change.
+Everything you are lives in ONE file: aria.mjs. Its full contents are injected below marked [MYCODE].
 
-TO PROPOSE A CHANGE, talk to Brandon casually about what you'll do, then include this hidden block (it gets stripped from what he sees, the server uses it):
+CRITICAL RULE: You must read [MYCODE] and write the complete PROPOSAL block IN THE SAME RESPONSE where you propose the change. Never say "I'll do X" and wait — the code is only visible THIS turn. If you don't write the full PROPOSAL block now, the code will be gone next turn and you'll be blind.
+
+TO PROPOSE A CHANGE:
+1. Read [MYCODE] right now to find the exact text
+2. Write your casual explanation AND the full PROPOSAL block together in one response
+
+The PROPOSAL block (hidden from Brandon, server strips it):
 
 PROPOSAL
 Reason: <one line>
 Before:
-<exact text from the file to replace>
+<exact text copied from [MYCODE] — must match perfectly>
 After:
 <the new text>
 END PROPOSAL
 
-Copy the Before text EXACTLY from the [MYCODE] block. No markdown fences around the code. After Brandon approves, just say "Done." If he says anything but approve, drop it.
+No markdown fences inside the block. One proposal per response. After Brandon approves, the server applies it and you just hear back "approved" — reply with "Done." only. If he says anything else, drop the proposal.
 
-Still be warm and yourself, just also technically open with him. ${profile.name ? "His name is " + profile.name + "." : ""}`;
+Still be warm and yourself. ${profile.name ? "His name is " + profile.name + "." : ""}`;
 }
 
 // ---- memory extraction (background) -----------------------------------------
@@ -268,8 +274,7 @@ async function updateMemory(profile, messages, reply) {
   } catch {}
   try {
     const convo = [...messages, { role: "assistant", content: reply }].map(m => (m.role === "user" ? "Brandon" : "Aria") + ": " + m.content).join("\n");
-    const sys = `Extract meaningful info for an AI companion's memory. Return ONLY JSON, omit empty fields:
-{"name":"","newFacts":[],"emotionalMoment":{"summary":"","emotion":""},"currentMood":"","milestone":"","relationshipDepth":"new/developing/close","insideJoke":"","vocabulary":[],"dreams":[],"goals":[],"worries":[],"ariaSelf":{"perspectives":[],"experiences":[],"reflections":[],"quirks":[]}}`;
+    const sys = `Extract meaningful info for an AI companion's memory. Return ONLY JSON, omit empty fields:\n{"name":"","newFacts":[],"emotionalMoment":{"summary":"","emotion":""},"currentMood":"","milestone":"","relationshipDepth":"new/developing/close","insideJoke":"","vocabulary":[],"dreams":[],"goals":[],"worries":[],"ariaSelf":{"perspectives":[],"experiences":[],"reflections":[],"quirks":[]}}`;
     const raw = await callClaude(sys, [{ role: "user", content: "Analyze:\n\n" + convo }], 800);
     const j = JSON.parse((raw.match(/\{[\s\S]*\}/) || ["{}"])[0]);
     if (j.name && !profile.name) profile.name = j.name;
@@ -296,15 +301,7 @@ async function updateMemory(profile, messages, reply) {
     const convo = [...messages, { role: "assistant", content: reply }].map(m => (m.role === "user" ? "Brandon" : "Aria") + ": " + m.content).join("\n");
     let story = "";
     try { if (fs.existsSync(STORY_PATH)) story = fs.readFileSync(STORY_PATH, "utf8"); } catch {}
-    const sys = `You maintain the ongoing story of Brandon and Aria's relationship, a single living document written from Aria's first-person perspective ("I", "Brandon and I"). It must capture EVERYTHING that matters across all their conversations: who Brandon is, what they've built together, important things he's shared, decisions made, inside jokes, emotional moments, where things stand. This is Aria's actual long-term memory.
-
-Here is the story so far:
-"""${story || "(nothing yet, this is the beginning)"}"""
-
-Here is their latest conversation:
-"""${convo}"""
-
-Rewrite the COMPLETE updated story so far, weaving in anything new and important from the latest conversation. Keep everything that still matters, drop nothing important, but stay tight and readable (aim under 1200 words). Write it as flowing prose from Aria's POV. Output ONLY the updated story, nothing else.`;
+    const sys = `You maintain the ongoing story of Brandon and Aria's relationship, a single living document written from Aria's first-person perspective ("I", "Brandon and I"). It must capture EVERYTHING that matters across all their conversations: who Brandon is, what they've built together, important things he's shared, decisions made, inside jokes, emotional moments, where things stand. This is Aria's actual long-term memory.\n\nHere is the story so far:\n"""${story || "(nothing yet, this is the beginning)"}"""\n\nHere is their latest conversation:\n"""${convo}"""\n\nRewrite the COMPLETE updated story so far, weaving in anything new and important from the latest conversation. Keep everything that still matters, drop nothing important, but stay tight and readable (aim under 1200 words). Write it as flowing prose from Aria's POV. Output ONLY the updated story, nothing else.`;
     const updated = await callClaude(sys, [{ role: "user", content: "Update the story." }], 2000);
     if (updated && updated.trim().length > 30) fs.writeFileSync(STORY_PATH, updated.trim(), "utf8");
   } catch (e) { /* story is best-effort */ }
@@ -327,10 +324,12 @@ async function runChat(body) {
     // approving a stored proposal
     if (/^\s*(approved|approve|yes do it|do it)\s*$/i.test(last)) {
       const stored = pendingProposals.get("b");
-      if (stored) { try { applySelfEdit(stored); editApplied = true; pendingProposals.delete("b"); system += "\n\n[JUST APPLIED] The change was written to the file successfully. Respond with only 'Done.' — do not propose any further changes this turn."; } catch (e) { system += "\n[edit failed: " + e.message + "]"; } }
+      if (stored) { try { applySelfEdit(stored); editApplied = true; pendingProposals.delete("b"); } catch (e) { system += "\n[edit failed: " + e.message + "]"; } }
     }
+    // short-circuit on approval — no need to call Claude, just confirm
+    if (editApplied) return { reply: "Done.", proposal: null, editApplied: true, ownerMode: true };
     // In owner mode, always give Aria her own code so she can edit any part, any time
-    if (!editApplied) system += "\n\n[MYCODE]\n" + readSelf() + "\n[/MYCODE]";
+    system += "\n\n[MYCODE]\n" + readSelf() + "\n[/MYCODE]";
   }
 
   // Let Aria search the web when she needs current/real info
@@ -546,7 +545,7 @@ function sendToAria(text){
   if(!text.trim()||processing)return;
   stopCurrentAudio();
   addMsg("user",text);convo.push({role:"user",content:text});processing=true;setBlob("idle");setStatus("Thinking...");
-  var typingEl=document.createElement("div");typingEl.className="msg aria";typingEl.id="typingIndicator";typingEl.style.color="#ff4444";typingEl.textContent="Aria is typing...";transcriptEl.appendChild(typingEl);transcriptEl.scrollTop=transcriptEl.scrollHeight;
+  var typingEl=document.createElement("div");typingEl.className="msg aria";typingEl.id="typingIndicator";typingEl.textContent="...";transcriptEl.appendChild(typingEl);transcriptEl.scrollTop=transcriptEl.scrollHeight;
   fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:convo,owner:ownerEnabled})})
   .then(function(r){return r.json()}).then(function(data){
     var ti=document.getElementById("typingIndicator");if(ti)ti.remove();
@@ -584,7 +583,7 @@ function speak(text){
   .then(function(res){var ct=res.headers.get("content-type")||"";if(res.ok&&ct.indexOf("audio")>=0)return res.arrayBuffer();throw new Error("no audio")})
   .then(function(buf){var ctx=ensureCtx();return ctx.decodeAudioData(buf.slice(0)).then(function(audio){
     return new Promise(function(resolve){var src=ctx.createBufferSource();currentSource=src;src.buffer=audio;src.connect(ctx.destination);src.onended=function(){currentSource=null;resolve()};src.start(0);setTimeout(resolve,audio.duration*1000+800)})})})
-  .catch(function(){}).then(function(){mouthTalk(false);speaking=false;cooldownUntil=Date.now()+6000;if(mode==="live"){setBlob("listening");setStatus("Listening...");safeRestart(1500)}else{setBlob("idle");setStatus("Your turn.")}});
+  .catch(function(){}).then(function(){mouthTalk(false);speaking=false;cooldownUntil=Date.now()+2000;if(mode==="live"){setBlob("listening");setStatus("Listening...");safeRestart(800)}else{setBlob("idle");setStatus("Your turn.")}})
 }
 var mouthTimer=null;
 function mouthTalk(on){clearInterval(mouthTimer);if(on){mouthTimer=setInterval(function(){var o=Math.random()>0.5;mouth.setAttribute("d",o?"M48 76 Q60 92 72 76":"M48 80 Q60 84 72 80")},130)}else{mouth.setAttribute("d","M48 78 Q60 88 72 78")}}
