@@ -382,6 +382,8 @@ async function runChat(body) {
     }
   }
 
+  // strip [MYCODE]...[/MYCODE] blocks and any stray tags from visible reply
+  reply = reply.replace(/\[MYCODE\][\s\S]*?\[\/MYCODE\]/g, "").replace(/\[MYCODE\]/g, "").replace(/\[\/MYCODE\]/g, "").replace(/\[JUST APPLIED\][^\n]*/g, "").trim();
   // strip em dashes
   reply = reply.replace(/\s*[—–]\s*/g, ", ").replace(/\s*--\s*/g, ", ").replace(/,\s*,/g, ",").replace(/\s{2,}/g, " ").trim();
 
